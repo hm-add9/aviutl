@@ -1,0 +1,64 @@
+--dialog:漢字の色/col,local kanColor=0xffffff;ほかの色/col,local otherColor=0xffffff;
+
+local hira=1
+local kata=0
+local kan=0
+local eng=0
+local num=0
+local kigo=0
+local ex=""
+
+local R = require("rikky_module")
+local object,data = R.getinfo("object")
+local font = R.getinfo("font")
+local Layer = R.getinfo("root")*100+obj.layer
+local Frame = R.getinfo("frame")
+local model = { hira = {0x829f,0x82f1},
+                kata = {161,223, 0x8340,0x8394},
+                kan  = {0x8157,0x8159, 0x889f,0xeeec},
+                eng  = {65,90, 97,122, 0x8260,0x829a},
+                num  = {48,57, 0x824f,0x8258},
+                shift= {128,160, 224,255} }
+
+local function within(code,area) for i=1,#area,2 do if area[i]<=code and code<=area[i+1] then return true end end return false end
+local function relstr(v) return (v+.5<0 and "" or "+")..math.floor(v+.5) end
+local function test(char)
+  local b1,b2 = string.byte(char,1,2)
+  local code = b2 and b1*256+b2 or b1
+  local f = (string.find(ex,char,1,true)) --exにcharが含まれているかを調べたいが、このままだと全角が無視される
+
+  if f and (f==1 or not within(string.byte(ex,f-1),model.shift)) then return b2 and 1 or 0.5 --マッチした文字のひとつ前の文字がシフト文字かどうか調べてから数値を返す
+  elseif within(code,model.hira) then return hira
+  elseif within(code,model.kata) then return b2 and kata or kata/2
+  elseif within(code,model.kan ) then return 7
+  elseif within(code,model.eng ) then return b2 and eng or eng/2
+  elseif within(code,model.num ) then return b2 and num or num/2
+  else return kigo end
+end
+
+if data.individual == 0 then --文字毎に個別オブジェクトが無効
+
+  local char = ""
+  for i,c in ipairs(R.textsplit(R.getinfo("text"))) do
+      local fuga = test(c)
+      if fuga==7       then char = char .. "<p"..relstr(data.spacing_x) .. ",+0>" .. "<#"..string.format("%06x", kanColor) .. ">" .. c .. "<#>"
+      elseif c == "\n" then char = char .. "<#"..string.format("%06x", otherColor) .. ">" .. c .. "<#>" ..  "<p+0," .. relstr(data.spacing_y) .. ">"
+                       else char = char .. "<p"..relstr(data.spacing_x) .. ",+0>" .. "<#"..string.format("%06x", otherColor) .. ">" .. c .. "<#>"
+      end
+  end
+
+  -- なぜか中心座標がズレるので調整
+  obj.load("text", char)
+  obj.ox = obj.ox + obj.w/2
+  obj.oy = obj.oy + obj.h/2
+
+else --文字毎に個別オブジェクトが有効
+
+  local text = string.gsub(R.getinfo("text"), "[\r\n]", "")
+  local chars = R.textsplit(text);
+  local oi = obj.index + 1
+  if test(chars[oi]) == 7 then obj.effect("単色化", "color", kanColor, "輝度を保持する", 0)
+  else obj.effect("単色化", "color", otherColor, "輝度を保持する", 0)
+  end
+
+end
